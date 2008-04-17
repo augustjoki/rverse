@@ -375,4 +375,7 @@ class MachO
     end
   end
   
+  class Image
+    
+  end
 end

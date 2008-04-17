@@ -1,5 +1,8 @@
+require 'rubygems'
 require 'mach-o'
 require 'enumerator'
+require 'treetop'
+require 'polyglot'
 require 'pp'
 
 file = "/Volumes/Vail5A225c.CarrierBundle/Applications/MobilePhone.app/MobilePhone"
@@ -30,15 +33,11 @@ class ObjectiveC
     '^' => 'pointer',
     '*' => 'char pointer',
     '%' => 'atom',
-    '[' => 'array_start',
-    ']' => 'array_end',
-    '(' => 'union_start',
-    ')' => 'union_end',
-    '{' => 'struct_start',
-    '}' => 'struct_end',
     '!' => 'vector',
     'r' => 'const'
   }
+  
+  Treetop.load "objc"
   
   def initialize(content, object)
     @source = content
@@ -75,7 +74,9 @@ class ObjectiveC
           ivar_name = virtual_gets(ivar_name_ptr)
           ivar_type = virtual_gets(ivar_type_ptr)
         
-          puts "\t#{ObjectiveC.decode_type(ivar_type)} #{ivar_name}; // #{ivar_type}"
+          #p ObjectiveC.decode_types(ivar_type)
+        
+          puts "\t#{ObjectiveC.decode_types(ivar_type)[0]} #{ivar_name}; // #{ivar_type}"
         end
       end
       puts "}\n\n"
@@ -91,9 +92,17 @@ class ObjectiveC
           method_name = virtual_gets(method_name_ptr)
           method_type = virtual_gets(method_type_ptr)
         
-          method = ObjectiveC.decode_selector_parameters(method_name, method_type)
+          method = method_name #ObjectiveC.decode_selector_parameters(method_name, method_type)
         
-          puts "- #{method}; // #{method_type}"
+          types = ObjectiveC.decode_types(method_type)
+          
+          parameter_types = types[3..-1]
+          
+          selector_parts = method_name.split(':')
+          
+          full_name = selector_parts.zip(parameter_types).map{|part| part.compact.size == 1 ? "#{part[0]}" : "#{part[0]}: (#{part[1]})"}.join(' ')
+        
+          puts "- (#{types[0]}) #{full_name}; // #{method_type}"
         end
       end
       
@@ -136,61 +145,50 @@ class ObjectiveC
     
   end
   
-  def self.decode_type(type)
-    case type 
-    when /^@\"(.*)\"$/
-      $1
-    when /^(struct .+)$/
-      $1
-    when /^(\^?[@#:cCsSiIlLqQfdbBv?*%\[\]()!r])/
-      if $1[0] == ?^
-        "*#{BASIC_TYPES[$1[1..-1]]}"
-      else
-        BASIC_TYPES[$1]
-      end
-    end
-  end
-  
-  def self.decode_selector_parameters(selector, parameters)
-    selector_parts = selector.split(':')
+  def self.decode_types(types)    
+    parser = ObjectiveCTypeDescriptorParser.new
     
-    tokens = parameters.scan(/\^?[@#:cCsSiIlLqQfdbBv?*%\[\]()!r]\d+|[\{\}]|[A-Za-z0-9]+|=/)
-    
-    real_types = []
-    
-    i = 0
-    while i < tokens.size
-      if tokens[i] != '{'
-        real_types << tokens[i]
-      else
-        depth = 0
+    parsed = parser.parse(types)
         
-        type = nil
-        begin
-          if tokens[i] == '{'
-            depth += 1
-          elsif tokens[i] == '}'
-            depth -= 1
+    types_array = parsed.elements.map do |element|
+      type = element.text_value
+      
+      pointer = 
+      if type[0] == ?^
+        type = type[1..-1]
+        true
+      else
+        false
+      end
+      
+      if type[0] == ?{
+        "struct #{element.elements[0].elements[1].elements[1].text_value}"
+      elsif type[0] == ?(
+        ""
+      elsif type[0] == ?[
+        ""
+      elsif type[0] == ?<
+      elsif type[0] == ?@
+        if element.elements && element.elements[0] &&
+           element.elements[0].elements && element.elements[0].elements[1] &&
+           element.elements[0].elements[1].elements && element.elements[0].elements[1].elements[1] &&
+           element.elements[0].elements[1].elements[1].elements && element.elements[0].elements[1].elements[1].elements[1]
+          pointer = true
+          value = element.elements[0].elements[1].elements[1].elements[1].text_value
+          if value[0] == ?<
+            "id#{value}"
           else
-            if depth == 1 && !type
-              type = tokens[i]
-            end
+            value
           end
-          i += 1
-        end while depth != 0
-        
-        real_types << "struct #{type}"
-      end
-      i += 1
+        else
+          BASIC_TYPES['@']
+        end
+      else
+        BASIC_TYPES[type[0, 1]]
+      end + (pointer ? " *" : "")
     end
-    
-    #p real_types
-    
-    return_type = ObjectiveC.decode_type(real_types[0])
-    
-    method_name = selector_parts.zip(real_types[3..-1].map{|type| "(#{ObjectiveC.decode_type(type)})"}).map{|part| part.compact.join(":")}.join(" ")
-    
-    "(#{return_type}) #{method_name}"
+        
+    types_array
   end
 end
 

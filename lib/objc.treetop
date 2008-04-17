@@ -1,0 +1,37 @@
+grammar ObjectiveCTypeDescriptor
+  rule type_sequence
+    (type number?)+
+  end
+
+  rule type
+    "^"? ([#:cCsSiIlLqQfdbBv?\*%!r] / class / struct / union / array)
+  end
+  
+  rule class
+    "@" ("\"" type_name "\"")?
+  end
+  
+  rule struct
+    "{" (name / "?") "=" (("\"" name "\"")? (type number?))* "}"
+  end
+
+  rule union
+    "(" name ")"
+  end
+  
+  rule array
+    "[" number type "]"
+  end
+  
+  rule name
+    [A-Za-z_] [A-Za-z0-9_]*
+  end
+  
+  rule type_name
+    (name ("<" name ">")?) / (name? ("<" name ">"))
+  end
+  
+  rule number
+    [0-9]+
+  end
+end
