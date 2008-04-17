@@ -91,7 +91,9 @@ class ObjectiveC
           method_name = virtual_gets(method_name_ptr)
           method_type = virtual_gets(method_type_ptr)
         
-          puts "- #{method_name}; // #{method_type}"
+          method = ObjectiveC.decode_selector_parameters(method_name, method_type)
+        
+          puts "- #{method}; // #{method_type}"
         end
       end
       
@@ -146,8 +148,15 @@ class ObjectiveC
   end
   
   def self.decode_selector_parameters(selector, parameters)
-    p selector
-    p parameters
+    selector_parts = selector.split(':').map{|part| part + ":"}
+    
+    types = parameters.scan(/[@#:cCsSiIlLqQfdbBv?\^*%\[\](){}!r]\d+/)
+    
+    return_type = BASIC_TYPES[types[0][0, 1]]
+    
+    method_name = selector_parts.zip(types[3..-1].map{|type| "(#{BASIC_TYPES[type[0, 1]]})"}).map{|part| part.join}.join(" ")
+    
+    "(#{return_type}) #{method_name}"
   end
 end
 
