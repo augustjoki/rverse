@@ -75,7 +75,7 @@ class ObjectiveC
           ivar_name = virtual_gets(ivar_name_ptr)
           ivar_type = virtual_gets(ivar_type_ptr)
         
-          puts "\t#{ObjectiveC.decode_type(ivar_type)} #{ivar_name};"
+          puts "\t#{ObjectiveC.decode_type(ivar_type)} #{ivar_name}; // #{ivar_type}"
         end
       end
       puts "}\n\n"
@@ -138,36 +138,42 @@ class ObjectiveC
   
   def self.decode_type(type)
     case type 
+    when /^@\"(.*)\"$/
+      $1
     when /^(struct .+)$/
       $1
-    when /^([@#:cCsSiIlLqQfdbBv?\^*%\[\]()!r])/
-      BASIC_TYPES[$1]
+    when /^(\^?[@#:cCsSiIlLqQfdbBv?*%\[\]()!r])/
+      if $1[0] == ?^
+        "*#{BASIC_TYPES[$1[1..-1]]}"
+      else
+        BASIC_TYPES[$1]
+      end
     end
   end
   
   def self.decode_selector_parameters(selector, parameters)
     selector_parts = selector.split(':')
     
-    types = parameters.scan(/[@#:cCsSiIlLqQfdbBv?\^*%\[\]()!r]\d+|[\{\}]|[A-Za-z0-9]+|=/)
+    tokens = parameters.scan(/\^?[@#:cCsSiIlLqQfdbBv?*%\[\]()!r]\d+|[\{\}]|[A-Za-z0-9]+|=/)
     
     real_types = []
     
     i = 0
-    while i < types.size
-      if types[i] != '{'
-        real_types << types[i]
+    while i < tokens.size
+      if tokens[i] != '{'
+        real_types << tokens[i]
       else
         depth = 0
         
         type = nil
         begin
-          if types[i] == '{'
+          if tokens[i] == '{'
             depth += 1
-          elsif types[i] == '}'
+          elsif tokens[i] == '}'
             depth -= 1
           else
             if depth == 1 && !type
-              type = types[i]
+              type = tokens[i]
             end
           end
           i += 1
@@ -178,6 +184,7 @@ class ObjectiveC
       i += 1
     end
     
+    #p real_types
     
     return_type = ObjectiveC.decode_type(real_types[0])
     
