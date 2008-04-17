@@ -138,23 +138,50 @@ class ObjectiveC
   
   def self.decode_type(type)
     case type 
-    when /^@"(.*)"$/
+    when /^(struct .+)$/
       $1
-    when /^i$/
-      "int"
-    when /^b(\d+)$/
-      "BOOL"
+    when /^([@#:cCsSiIlLqQfdbBv?\^*%\[\]()!r])/
+      BASIC_TYPES[$1]
     end
   end
   
   def self.decode_selector_parameters(selector, parameters)
-    selector_parts = selector.split(':').map{|part| part + ":"}
+    selector_parts = selector.split(':')
     
-    types = parameters.scan(/[@#:cCsSiIlLqQfdbBv?\^*%\[\](){}!r]\d+/)
+    types = parameters.scan(/[@#:cCsSiIlLqQfdbBv?\^*%\[\]()!r]\d+|[\{\}]|[A-Za-z0-9]+|=/)
     
-    return_type = BASIC_TYPES[types[0][0, 1]]
+    real_types = []
     
-    method_name = selector_parts.zip(types[3..-1].map{|type| "(#{BASIC_TYPES[type[0, 1]]})"}).map{|part| part.join}.join(" ")
+    i = 0
+    while i < types.size
+      if types[i] != '{'
+        real_types << types[i]
+      else
+        depth = 0
+        
+        type = nil
+        begin
+          if types[i] == '{'
+            depth += 1
+          elsif types[i] == '}'
+            depth -= 1
+          else
+            if depth == 1 && !type
+              type = types[i]
+            end
+          end
+          i += 1
+        end while depth != 0
+        
+        real_types << "struct #{type}"
+      end
+      i += 1
+    end
+    
+    
+    return_type = ObjectiveC.decode_type(real_types[0])
+    
+    method_name = selector_parts.zip(real_types[3..-1].map{|type| "(#{ObjectiveC.decode_type(type)})"}).map{|part| part.compact.join(":")}.join(" ")
     
     "(#{return_type}) #{method_name}"
   end
