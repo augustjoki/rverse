@@ -62,33 +62,37 @@ class ObjectiveC
       
       puts "@interface #{virtual_gets(name_ptr)}\n{"
       
-      ivar_size, ivar_count = virtual_read(ivarlist_ptr, 8).unpack("V*")
+      if ivarlist_ptr != 0
+        ivar_size, ivar_count = virtual_read(ivarlist_ptr, 8).unpack("V*")
     
-      ivars = virtual_read(ivarlist_ptr + 8, ivar_size * ivar_count)
+        ivars = virtual_read(ivarlist_ptr + 8, ivar_size * ivar_count)
       
-      ivar_count.times do |i|
-        ivar_unk0, ivar_name_ptr, ivar_type_ptr, ivar_unk1, ivar_unk2 = ivars[ivar_size * i, ivar_size].unpack("V*")
+        ivar_count.times do |i|
+          ivar_unk0, ivar_name_ptr, ivar_type_ptr, ivar_unk1, ivar_unk2 = ivars[ivar_size * i, ivar_size].unpack("V*")
         
-        break if ivar_name_ptr == 0
+          break if ivar_name_ptr == 0
         
-        ivar_name = virtual_gets(ivar_name_ptr)
-        ivar_type = virtual_gets(ivar_type_ptr)
+          ivar_name = virtual_gets(ivar_name_ptr)
+          ivar_type = virtual_gets(ivar_type_ptr)
         
-        puts "\t#{ObjectiveC.decode_type(ivar_type)} #{ivar_name};"
+          puts "\t#{ObjectiveC.decode_type(ivar_type)} #{ivar_name};"
+        end
       end
       puts "}\n\n"
       
-      method_size, method_count = virtual_read(methodlist_ptr, 8).unpack("V*")
+      if methodlist_ptr != 0
+        method_size, method_count = virtual_read(methodlist_ptr, 8).unpack("V*")
       
-      methods = virtual_read(methodlist_ptr + 8, method_size * method_count)
+        methods = virtual_read(methodlist_ptr + 8, method_size * method_count)
       
-      method_count.times do |i|
-        method_name_ptr, method_type_ptr, handler_ptr = methods[method_size * i, method_size].unpack("V*")
+        method_count.times do |i|
+          method_name_ptr, method_type_ptr, handler_ptr = methods[method_size * i, method_size].unpack("V*")
         
-        method_name = virtual_gets(method_name_ptr)
-        method_type = virtual_gets(method_type_ptr)
+          method_name = virtual_gets(method_name_ptr)
+          method_type = virtual_gets(method_type_ptr)
         
-        puts "- #{method_name}; // #{method_type}"
+          puts "- #{method_name}; // #{method_type}"
+        end
       end
       
       puts "@end\n\n"
@@ -101,7 +105,6 @@ class ObjectiveC
         read_offset = @object[:offset] + info[:file_offset] + (offset - info[:vm_addr])
         
         old_offset = @source.tell
-        
         @source.seek(read_offset, IO::SEEK_SET)
         buffer = @source.read(length)
         
