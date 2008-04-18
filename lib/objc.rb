@@ -3,19 +3,10 @@
 # This file is going to be refactored soon, it's just to test objc processing code
 
 require 'rubygems'
-require 'mach-o'
 require 'enumerator'
 require 'treetop'
 require 'polyglot'
 require 'pp'
-
-file = "/Volumes/Vail5A225c.CarrierBundle/Applications/MobilePhone.app/MobilePhone"
-
-f = File.open(file)
-
-module ObjectiveCConstants
-  
-end
 
 class ObjectiveC
   BASIC_TYPES = {
@@ -203,9 +194,3 @@ class ObjectiveC
     types_array
   end
 end
-
-macho = MachO.new(f).architectures[[:arm, :v6]]
-
-objc = ObjectiveC.new(f, macho)
-
-f.close
