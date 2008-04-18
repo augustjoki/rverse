@@ -1,6 +1,8 @@
 #!/usr/bin/env ruby
 
 # This file is going to be refactored soon, it's just to test objc processing code
+# It should eventually output its information to an abstract format, that can then be
+# output to objc syntax if necessary
 
 require 'rubygems'
 require 'enumerator'
@@ -53,41 +55,56 @@ class ObjectiveC
 
     classlist = content.read(classlist_size).unpack("V*")
     
+    virtual = object.virtual
+    
     classlist.each do |class_offset| 
-      isa_ptr, superclass_ptr, cache_ptr, vtable_ptr, info_ptr = virtual_read(class_offset, 20).unpack("V*")
+      virtual.seek(class_offset)
+      isa_ptr, superclass_ptr, cache_ptr, vtable_ptr, info_ptr = virtual.read(20).unpack("V*")
       
-      unk0, unk1, unk2, unk3, name_ptr, methodlist_ptr, unk4, ivarlist_ptr = virtual_read(info_ptr, 32).unpack("V*")
+      virtual.seek(info_ptr)
+      unk0, unk1, unk2, unk3, name_ptr, methodlist_ptr, unk4, ivarlist_ptr = virtual.read(32).unpack("V*")
       
-      puts "@interface #{virtual_gets(name_ptr)}\n{"
+      virtual.seek(name_ptr)
+      puts "@interface #{virtual.gets("\x00").chop}\n{"
       
       if ivarlist_ptr != 0
-        ivar_size, ivar_count = virtual_read(ivarlist_ptr, 8).unpack("V*")
+        virtual.seek(ivarlist_ptr)
+        ivar_size, ivar_count = virtual.read(8).unpack("V*")
     
-        ivars = virtual_read(ivarlist_ptr + 8, ivar_size * ivar_count)
+        virtual.seek(ivarlist_ptr + 8)
+        ivars = virtual.read(ivar_size * ivar_count)
       
         ivar_count.times do |i|
           ivar_unk0, ivar_name_ptr, ivar_type_ptr, ivar_unk1, ivar_unk2 = ivars[ivar_size * i, ivar_size].unpack("V*")
         
           break if ivar_name_ptr == 0
         
-          ivar_name = virtual_gets(ivar_name_ptr)
-          ivar_type = virtual_gets(ivar_type_ptr)
-                
+          virtual.seek(ivar_name_ptr)
+          ivar_name = virtual.gets("\x00").chop
+          
+          virtual.seek(ivar_type_ptr)
+          ivar_type = virtual.gets("\x00").chop
+
           puts "\t#{ObjectiveC.merge_typenames(ivar_name, ivar_type)}; // #{ivar_type}"
         end
       end
       puts "}\n\n"
       
       if methodlist_ptr != 0
-        method_size, method_count = virtual_read(methodlist_ptr, 8).unpack("V*")
+        virtual.seek(methodlist_ptr)
+        method_size, method_count = virtual.read(8).unpack("V*")
       
-        methods = virtual_read(methodlist_ptr + 8, method_size * method_count)
+        virtual.seek(methodlist_ptr + 8)
+        methods = virtual.read(method_size * method_count)
       
         method_count.times do |i|
           method_name_ptr, method_type_ptr, handler_ptr = methods[method_size * i, method_size].unpack("V*")
         
-          method_name = virtual_gets(method_name_ptr)
-          method_type = virtual_gets(method_type_ptr)
+          virtual.seek(method_name_ptr)
+          method_name = virtual.gets("\x00").chop
+          
+          virtual.seek(method_type_ptr)
+          method_type = virtual.gets("\x00").chop
         
           method = method_name #ObjectiveC.decode_selector_parameters(method_name, method_type)
         
@@ -96,38 +113,6 @@ class ObjectiveC
       end
       
       puts "@end\n\n"
-    end
-  end
-  
-  # This needs to be moved to mach-o as a method of image
-  def virtual_read(offset, length)
-    @object.segments.each_value do |info|
-      if offset >= info[:vm_addr] && offset < info[:vm_addr] + info[:vm_size]
-        read_offset = info[:file_offset] + (offset - info[:vm_addr])
-        
-        old_offset = @source.tell
-        @source.seek(read_offset, IO::SEEK_SET)
-        buffer = @source.read(length)
-        
-        @source.seek(old_offset, IO::SEEK_SET)
-        return buffer
-      end
-    end
-  end
-  
-  def virtual_gets(offset)
-    @object.segments.each_value do |info|
-      if offset >= info[:vm_addr] && offset < info[:vm_addr] + info[:vm_size]
-        read_offset = info[:file_offset] + (offset - info[:vm_addr])
-        
-        old_offset = @source.tell
-        
-        @source.seek(read_offset, IO::SEEK_SET)
-        buffer = @source.gets("\x00")[0..-2]
-        
-        @source.seek(old_offset, IO::SEEK_SET)
-        return buffer
-      end
     end
   end
   

@@ -389,15 +389,29 @@ class MachO
       end
       
       def tell
-        
+        @position
       end
       
-      def seek(offset, whence)
+      def seek(offset, whence = IO::SEEK_SET)
+        @segments.each_value do |info|
+          if offset >= info[:vm_addr] && offset < info[:vm_addr] + info[:vm_size]
+            read_offset = info[:file_offset] + (offset - info[:vm_addr])
 
+            @source.seek(read_offset)
+            
+            return
+          end
+        end
+        
+        raise "Invalid seek"
       end
       
       def read(size)
-        
+        @source.read(size)
+      end
+      
+      def gets(separator)
+        @source.gets(separator)
       end
     end
     
@@ -410,7 +424,7 @@ class MachO
         @source.tell - @offset
       end
       
-      def seek(offset, whence)
+      def seek(offset, whence = IO::SEEK_SET)
         # TODO: check for image bounds
         if whence == IO::SEEK_SET
           @source.seek(offset + @offset, whence)
