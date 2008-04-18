@@ -1,7 +1,7 @@
 #! /usr/bin/env ruby
 require 'objc'
 require 'mach-o'
-if ARGV.length
+if ARGV.length > 0
   file = ARGV[0]
 else
   file = "/Volumes/Vail5A225c.CarrierBundle/Applications/MobilePhone.app/MobilePhone"
