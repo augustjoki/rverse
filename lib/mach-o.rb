@@ -169,8 +169,8 @@ class MachO
     file_magic = content.read(4).unpack("N")[0]
     
     @source = content
-    @architectures = {}
-    
+    architectures = {}
+    @architectures = architectures
     # Check to see if we have a fat binary
     if file_magic == 0xcafebabe || file_magic == 0xbebafeca
       # We have a fat binary, next int is the number of architectures
@@ -196,7 +196,7 @@ class MachO
         # Go back to where we were
         content.seek(old_offset, IO::SEEK_SET)
         
-        @architectures[[cpu_type, cpu_subtype]] = {:offset => offset, :size => size, :byte_order => byte_order, :big_header => big_header}
+        architectures[[cpu_type, cpu_subtype]] = {:offset => offset, :size => size, :byte_order => byte_order, :big_header => big_header}
       end
     elsif file_magic = 0xfeedface || file_magic == 0xcefadefe || file_magic == 0xfeedfacf || file_magic == 0xcffaedfe
       # We have a normal binary, check the size of its header
@@ -208,12 +208,12 @@ class MachO
       cpu_type = CPU_TYPES[cpu_type]
       cpu_subtype = CPU_SUBTYPES[cpu_type][cpu_subtype]
 
-      @architectures[[cpu_type, cpu_subtype]] = {:offset => 0, :size => content.stat.size, :byte_order => byte_order, :big_header => big_header}
+      architectures[[cpu_type, cpu_subtype]] = {:offset => 0, :size => content.stat.size, :byte_order => byte_order, :big_header => big_header}
     else
       raise "Not a Mach-O binary"
     end
     
-    @architectures.each do |architecture, info|
+    architectures.each do |architecture, info|
       # p architecture
       content.seek(info[:offset], IO::SEEK_SET)
 

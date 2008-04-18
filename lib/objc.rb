@@ -146,6 +146,14 @@ class ObjectiveC
   
   def self.merge_typenames(name, types)
     decoded_types = decode_types(types)
+    
+    if decoded_types.size == 1
+      # We have a member variable
+      
+    else
+      # We have a selector
+      
+    end
   end
   
   def self.decode_types(types)    

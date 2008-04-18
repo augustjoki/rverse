@@ -16,7 +16,7 @@ grammar ObjectiveCTypeDescriptor
   end
 
   rule union
-    "(" name ")"
+    "(" name "=" (("\"" name "\"")? (type number?))* ")"
   end
   
   rule array
