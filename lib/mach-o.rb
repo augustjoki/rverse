@@ -381,6 +381,7 @@ class MachO
     end
   end
   
+  # TODO: This class should eventually be moved out of the MachO class, so we can support other object formats
   class Image
     class VirtualIO
       def initialize(source, segments)

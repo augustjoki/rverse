@@ -180,7 +180,23 @@ class ObjectiveC
         # TODO: smarter AST usage
         "struct #{element.elements[0].elements[1].elements[1].text_value}"
       elsif type[0] == ?(
-        ""
+        # TODO: this all should be outputting its info to an abstract structure, rather than as a string to stdout
+        union_name = element.elements[0].elements[1].elements[1].text_value
+        
+        union_members = []
+        element.elements[0].elements[1].elements[3].elements.each do |el|
+          union_element_name = el.elements[0].text_value.gsub(/\"/, '')
+          union_element_type = el.elements[1].text_value
+          
+          if union_element_type[0] == ?^
+            union_members << "#{BASIC_TYPES[union_element_type[1, 1]]} * #{union_element_name}"
+          else
+            union_members << "#{BASIC_TYPES[union_element_type[0, 1]]} #{union_element_name}"
+          end
+        end
+        
+        "union #{union_name} {\n" +
+        union_members.map{|member| "\t\t#{member};"}.join("\n") + "\n\t}"
       elsif type[0] == ?[
         count = element.elements[0].elements[1].elements[1].text_value.to_i
         
