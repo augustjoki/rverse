@@ -376,6 +376,8 @@ class MachO
   end
   
   class Image
-    
+    class VirtualIO < IO
+      
+    end
   end
 end

@@ -1,3 +1,7 @@
+#!/usr/bin/env ruby
+
+# This file is going to be refactored soon, it's just to test objc processing code
+
 require 'rubygems'
 require 'mach-o'
 require 'enumerator'
@@ -8,6 +12,10 @@ require 'pp'
 file = "/Volumes/Vail5A225c.CarrierBundle/Applications/MobilePhone.app/MobilePhone"
 
 f = File.open(file)
+
+module ObjectiveCConstants
+  
+end
 
 class ObjectiveC
   BASIC_TYPES = {
@@ -31,10 +39,9 @@ class ObjectiveC
     'v' => 'void',
     '?' => 'undefined',
     '^' => 'pointer',
-    '*' => 'char pointer',
+    '*' => 'char *',
     '%' => 'atom',
-    '!' => 'vector',
-    'r' => 'const'
+    '!' => 'vector'
   }
   
   Treetop.load "objc"
@@ -110,6 +117,7 @@ class ObjectiveC
     end
   end
   
+  # This needs to be moved to mach-o as a method of image
   def virtual_read(offset, length)
     @object[:segments].each_value do |info|
       if offset >= info[:vm_addr] && offset < info[:vm_addr] + info[:vm_size]
@@ -145,6 +153,10 @@ class ObjectiveC
     
   end
   
+  def self.merge_typenames(name, types)
+    decoded_types = decode_types(types)
+  end
+  
   def self.decode_types(types)    
     parser = ObjectiveCTypeDescriptorParser.new
     
@@ -153,8 +165,7 @@ class ObjectiveC
     types_array = parsed.elements.map do |element|
       type = element.text_value
       
-      pointer = 
-      if type[0] == ?^
+      pointer = if type[0] == ?^
         type = type[1..-1]
         true
       else
@@ -169,6 +180,7 @@ class ObjectiveC
         ""
       elsif type[0] == ?<
       elsif type[0] == ?@
+        # EWW ugly, do smarter AST parsing
         if element.elements && element.elements[0] &&
            element.elements[0].elements && element.elements[0].elements[1] &&
            element.elements[0].elements[1].elements && element.elements[0].elements[1].elements[1] &&
