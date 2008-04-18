@@ -25,7 +25,7 @@ class ObjectiveC
     'Q' => 'unsigned long long',
     'f' => 'float',
     'd' => 'double',
-    'b' => 'bitfield',
+    'b' => 'unsigned',
     'B' => 'bool',
     'v' => 'void',
     '?' => 'undefined',
@@ -71,10 +71,8 @@ class ObjectiveC
         
           ivar_name = virtual_gets(ivar_name_ptr)
           ivar_type = virtual_gets(ivar_type_ptr)
-        
-          #p ObjectiveC.decode_types(ivar_type)
-        
-          puts "\t#{ObjectiveC.decode_types(ivar_type)[0]} #{ivar_name}; // #{ivar_type}"
+                
+          puts "\t#{ObjectiveC.merge_typenames(ivar_name, ivar_type)}; // #{ivar_type}"
         end
       end
       puts "}\n\n"
@@ -92,15 +90,7 @@ class ObjectiveC
         
           method = method_name #ObjectiveC.decode_selector_parameters(method_name, method_type)
         
-          types = ObjectiveC.decode_types(method_type)
-          
-          parameter_types = types[3..-1]
-          
-          selector_parts = method_name.split(':')
-          
-          full_name = selector_parts.zip(parameter_types).map{|part| part.compact.size == 1 ? "#{part[0]}" : "#{part[0]}: (#{part[1]})"}.join(' ')
-        
-          puts "- (#{types[0]}) #{full_name}; // #{method_type}"
+          puts "- #{ObjectiveC.merge_typenames(method_name, method_type)}; // #{method_type}"
         end
       end
       
@@ -148,11 +138,28 @@ class ObjectiveC
     decoded_types = decode_types(types)
     
     if decoded_types.size == 1
-      # We have a member variable
+      # we have a member variable
       
+      if decoded_types[0] =~ /^unsigned :(\d+)$/
+        "unsigned #{name}:#{$1}"
+      elsif decoded_types[0] =~ /^(.*)(\[\d+\])$/
+        "#{$1} #{name}#{$2}"
+      else
+        "#{decoded_types[0]} #{name}"
+      end
     else
-      # We have a selector
+      # we have a selector
       
+      # ignore the return value, object receiver and selector
+      parameter_types = decoded_types[3..-1]
+      
+      # split the selector into its parts
+      selector_parts = name.split(':')
+      
+      # interleave the selector parts with their types
+      full_name = selector_parts.zip(parameter_types).map{|part| part.compact.size == 1 ? "#{part[0]}" : "#{part[0]}: (#{part[1]})"}.join(' ')
+      
+      "(#{decoded_types[0]}) #{full_name}"
     end
   end
   
@@ -172,12 +179,16 @@ class ObjectiveC
       end
       
       if type[0] == ?{
+        # TODO: smarter AST usage
         "struct #{element.elements[0].elements[1].elements[1].text_value}"
       elsif type[0] == ?(
         ""
       elsif type[0] == ?[
-        ""
-      elsif type[0] == ?<
+        count = element.elements[0].elements[1].elements[1].text_value.to_i
+        
+        "#{BASIC_TYPES[element.elements[0].elements[1].elements[2].text_value]}[#{count}]"
+      elsif type[0] == ?b
+        "unsigned :#{element.elements[1].text_value.to_i}"
       elsif type[0] == ?@
         # EWW ugly, do smarter AST parsing
         if element.elements && element.elements[0] &&
