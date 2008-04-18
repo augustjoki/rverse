@@ -37,18 +37,19 @@ class ObjectiveC
   
   Treetop.load "objc"
   
-  def initialize(content, object)
-    @source = content
-    @object = object
-    
-    data = object[:segments]['__DATA']
+  def initialize(object)
+    data = object.segments['__DATA']
     
     sections = data[:sections]
     
     classlist_offset = sections['__objc_classlist'][:offset]
     classlist_size = sections['__objc_classlist'][:size]
     
-    content.seek(object[:offset] + classlist_offset, IO::SEEK_SET)
+    @object = object
+    @source = object.physical
+    
+    content = object.physical
+    content.seek(classlist_offset, IO::SEEK_SET)
 
     classlist = content.read(classlist_size).unpack("V*")
     
@@ -100,9 +101,9 @@ class ObjectiveC
   
   # This needs to be moved to mach-o as a method of image
   def virtual_read(offset, length)
-    @object[:segments].each_value do |info|
+    @object.segments.each_value do |info|
       if offset >= info[:vm_addr] && offset < info[:vm_addr] + info[:vm_size]
-        read_offset = @object[:offset] + info[:file_offset] + (offset - info[:vm_addr])
+        read_offset = info[:file_offset] + (offset - info[:vm_addr])
         
         old_offset = @source.tell
         @source.seek(read_offset, IO::SEEK_SET)
@@ -115,9 +116,9 @@ class ObjectiveC
   end
   
   def virtual_gets(offset)
-    @object[:segments].each_value do |info|
+    @object.segments.each_value do |info|
       if offset >= info[:vm_addr] && offset < info[:vm_addr] + info[:vm_size]
-        read_offset = @object[:offset] + info[:file_offset] + (offset - info[:vm_addr])
+        read_offset = info[:file_offset] + (offset - info[:vm_addr])
         
         old_offset = @source.tell
         
@@ -130,16 +131,13 @@ class ObjectiveC
     end
   end
   
-  def file_read(offset, length)
-    
-  end
-  
   def self.merge_typenames(name, types)
     decoded_types = decode_types(types)
     
     if decoded_types.size == 1
       # we have a member variable
       
+      # Some types (bitfields and arrays) need swappage
       if decoded_types[0] =~ /^unsigned :(\d+)$/
         "unsigned #{name}:#{$1}"
       elsif decoded_types[0] =~ /^(.*)(\[\d+\])$/

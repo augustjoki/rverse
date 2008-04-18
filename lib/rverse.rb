@@ -11,8 +11,8 @@ f = File.open(file)
 
 macho = MachO.new(f)
 
-macho = macho.architectures[[:arm, :v6]]
+macho = macho.images[[:arm, :v6]]
 
-objc = ObjectiveC.new(f, macho)
+objc = ObjectiveC.new(macho)
 
 f.close
