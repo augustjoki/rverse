@@ -1,6 +1,8 @@
-# This needs to include the C definitions, and needs extensive testing
+# This needs to include the C definitions, and is untested
 
 grammar ObjectiveC
+  include C
+
   rule external_declaration
     function_definition / 
     declaration / 

@@ -12,7 +12,6 @@ f = File.open(file)
 
 macho = MachO.new(f)
 
-
 macho = macho.images[[:arm, :v6]]
 
 objc = ObjectiveC.new(macho)
