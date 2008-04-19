@@ -43,7 +43,7 @@ class ObjectiveC
     '&' => 'retain'
   }
   
-  Treetop.load "objc"
+  Treetop.load "grammars/objc_typedescriptor"
   
   def initialize(object)
     data = object.segments['__DATA']
