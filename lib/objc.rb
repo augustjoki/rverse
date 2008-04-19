@@ -37,6 +37,12 @@ class ObjectiveC
     '!' => 'vector'
   }
   
+  PROPERTY_MODIFIERS = {
+    'C' => 'copy',
+    'R' => 'readonly',
+    '&' => 'retain'
+  }
+  
   Treetop.load "objc"
   
   def initialize(object)
@@ -62,7 +68,7 @@ class ObjectiveC
       isa_ptr, superclass_ptr, cache_ptr, vtable_ptr, info_ptr = virtual.read(20).unpack("V*")
       
       virtual.seek(info_ptr)
-      unk0, unk1, unk2, unk3, name_ptr, methodlist_ptr, unk4, ivarlist_ptr = virtual.read(32).unpack("V*")
+      unk0, unk1, unk2, unk3, name_ptr, methodlist_ptr, unk4, ivarlist_ptr, unk5, propertylist_ptr = virtual.read(40).unpack("V*")
       
       virtual.seek(name_ptr)
       puts "@interface #{virtual.gets("\x00").chop}\n{"
@@ -71,20 +77,21 @@ class ObjectiveC
         virtual.seek(ivarlist_ptr)
         ivar_size, ivar_count = virtual.read(8).unpack("V*")
     
-        virtual.seek(ivarlist_ptr + 8)
+        # Maybe I should avoid reading it all into memory...
         ivars = virtual.read(ivar_size * ivar_count)
       
+      
         ivar_count.times do |i|
-          ivar_unk0, ivar_name_ptr, ivar_type_ptr, ivar_unk1, ivar_unk2 = ivars[ivar_size * i, ivar_size].unpack("V*")
+          ivar_unk0, ivar_name_ptr, ivar_type_ptr, ivar_unk1, ivar_memsize = ivars[ivar_size * i, ivar_size].unpack("V*")
         
           break if ivar_name_ptr == 0
-        
+
           virtual.seek(ivar_name_ptr)
           ivar_name = virtual.gets("\x00").chop
           
           virtual.seek(ivar_type_ptr)
           ivar_type = virtual.gets("\x00").chop
-
+          
           puts "\t#{ObjectiveC.merge_typenames(ivar_name, ivar_type)}; // #{ivar_type}"
         end
       end
@@ -94,7 +101,6 @@ class ObjectiveC
         virtual.seek(methodlist_ptr)
         method_size, method_count = virtual.read(8).unpack("V*")
       
-        virtual.seek(methodlist_ptr + 8)
         methods = virtual.read(method_size * method_count)
       
         method_count.times do |i|
@@ -105,11 +111,38 @@ class ObjectiveC
           
           virtual.seek(method_type_ptr)
           method_type = virtual.gets("\x00").chop
-        
-          method = method_name #ObjectiveC.decode_selector_parameters(method_name, method_type)
-        
+                
           puts "- #{ObjectiveC.merge_typenames(method_name, method_type)}; // #{method_type}"
         end
+      end
+      
+      puts
+      if propertylist_ptr != 0
+        virtual.seek(propertylist_ptr)
+        property_size, property_count = virtual.read(8).unpack("V*")
+        
+        properties = virtual.read(property_size * property_count)
+        
+        property_count.times do |i|
+          property_name_ptr, property_type_ptr = properties[property_size * i, property_size].unpack("V*")
+          
+          virtual.seek(property_name_ptr)
+          property_name = virtual.gets("\x00").chop
+          
+          virtual.seek(property_type_ptr)
+          property_type = virtual.gets("\x00").chop
+          
+          property_info = property_type.split(',')
+          
+          if property_info.size > 2
+            modifiers = "(#{PROPERTY_MODIFIERS[property_info[1]]})"
+          else
+            modifiers = ""
+          end
+          
+          puts "@property#{modifiers} #{ObjectiveC.merge_typenames(property_name, property_info[0][1..-1])};"
+        end
+        puts
       end
       
       puts "@end\n\n"

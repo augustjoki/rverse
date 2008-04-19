@@ -392,6 +392,7 @@ class MachO
         @position
       end
       
+      # Replace with a precomputed interval tree, maybe, or maybe a caching mechanism? or at least check how much time this is taking
       def seek(offset, whence = IO::SEEK_SET)
         @segments.each_value do |info|
           if offset >= info[:vm_addr] && offset < info[:vm_addr] + info[:vm_size]
