@@ -4,6 +4,7 @@ A set of libraries and utilities to facilitate reverse engineering
 
 ### TODOs
 
+* TEST TEST TEST (with rspec, ideally)
 * Decode the additional information in the dysymtab load command, to support other kinds of relocations and dynamic linker behavior
 * Let the ObjC type descriptor parser understand ObjC++
 * Have the ObjC module detect ObjC1/1.5/2 and search for structures accordingly
@@ -13,6 +14,7 @@ A set of libraries and utilities to facilitate reverse engineering
 * Consider adding support for gcc extensions to C/ObjC/C++ as most of the headers we'll be dealing with come from gcc/g++
 * Abstract away the Image class and have MachO simply return subclasses of it
 * Fix the Image virtual memory IO object to prevent reading past the edge of segment boundaries
+* Reorder directories to make more sense
 
 ### Dependencies
 
