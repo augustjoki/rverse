@@ -4,7 +4,7 @@ grammar ObjectiveCTypeDescriptor
   end
 
   rule type
-    "^"? ([#:cCsSiIlLqQfdbBv?\*%!r] / class / struct / union / array)
+    ("^" / "r")* ([#:cCsSiIlLqQfdbBv?\*%!r] / class / struct / union / array)
   end
   
   rule class

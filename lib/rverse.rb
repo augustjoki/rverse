@@ -1,6 +1,8 @@
 #! /usr/bin/env ruby
 require 'objc'
 require 'mach-o'
+require 'pp'
+
 if ARGV.length > 0
   file = ARGV[0]
 else
@@ -13,6 +15,8 @@ f = File.open(file)
 macho = MachO.new(f)
 
 macho = macho.images[[:arm, :v6]]
+
+#pp macho.symbols
 
 objc = ObjectiveC.new(macho)
 

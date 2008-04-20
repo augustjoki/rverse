@@ -174,6 +174,8 @@ class MachO
 
     @images = {}
 
+    @symbols = []
+
     # Check to see if we have a fat binary
     if file_magic == 0xcafebabe || file_magic == 0xbebafeca
       # We have a fat binary, next int is the number of architectures
@@ -316,6 +318,8 @@ class MachO
             
             info[:symbols][symbol] = {:section => section, :desc => desc, :value => value, :external => external}
             
+            @symbols << symbol
+            
             if symbol_type == 0
               info[:symbols][symbol][:lazy] = (desc & 1) != 0
             else
@@ -372,10 +376,29 @@ class MachO
           external_relocation_table_count,
           local_relocation_table_offset,
           local_relocation_table_count = command[8, 88].unpack("#{int_format}*")
+
+          old_offset = content.tell
+          
+          content.seek(info[:offset] + external_relocation_table_offset)
+          
+          info[:relocations] = {}
+          
+          external_relocation_table_count.times do
+            relocation_address, relocation_info = content.read(8).unpack("#{int_format}*")
+            
+            info[:relocations][relocation_address] = @symbols[relocation_info & 0x00FFFFFF]
+            #p (relocation_info & 0x01000000) >> 24
+            #p (relocation_info & 0x06000000) >> 25
+            #p (relocation_info & 0x08000000) >> 27
+            #p (relocation_info & 0xF0000000) >> 28
+          end
+          
+          content.seek(old_offset)
+
         end
       end
     end
-    
+
     architectures.each_pair do |architecture, info|
       @images[architecture] = Image.new(architecture, info, self)
     end
@@ -443,7 +466,7 @@ class MachO
       end
     end
     
-    attr_reader :segments, :sections, :symbols, :size
+    attr_reader :segments, :sections, :symbols, :size, :relocations
     
     def initialize(architecture, info, parent)
       @parent = parent
@@ -454,6 +477,7 @@ class MachO
       @offset = info[:offset]
       @size = info[:size]
       @segments = info[:segments]
+      @relocations = info[:relocations]
     end
     
     # Returns an IO object that operates on the loaded image's memory

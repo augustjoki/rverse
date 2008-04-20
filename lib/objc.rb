@@ -34,7 +34,8 @@ class ObjectiveC
     '^' => 'pointer',
     '*' => 'char *',
     '%' => 'atom',
-    '!' => 'vector'
+    '!' => 'vector',
+    'r' => 'const'
   }
   
   PROPERTY_MODIFIERS = {
@@ -65,13 +66,24 @@ class ObjectiveC
     
     classlist.each do |class_offset| 
       virtual.seek(class_offset)
-      isa_ptr, superclass_ptr, cache_ptr, vtable_ptr, info_ptr = virtual.read(20).unpack("V*")
+      metaclass_ptr, superclass_ptr, cache_ptr, vtable_ptr, info_ptr = virtual.read(20).unpack("V*")
       
+      superclass_name = if object.relocations[class_offset + 4] =~ /^_OBJC_CLASS_\$_(.*)$/
+        $1
+      else
+        virtual.seek(superclass_ptr + 16)
+        virtual.seek(virtual.read(4).unpack("V*")[0] + 16)
+        superclass_name_ptr = virtual.read(4).unpack("V*")[0]
+
+        virtual.seek(superclass_name_ptr)
+        virtual.gets("\x00").chop
+      end
+            
       virtual.seek(info_ptr)
       unk0, unk1, unk2, unk3, name_ptr, methodlist_ptr, unk4, ivarlist_ptr, unk5, propertylist_ptr = virtual.read(40).unpack("V*")
       
       virtual.seek(name_ptr)
-      puts "@interface #{virtual.gets("\x00").chop}\n{"
+      puts "@interface #{virtual.gets("\x00").chop} : #{superclass_name}\n{"
       
       if ivarlist_ptr != 0
         virtual.seek(ivarlist_ptr)
@@ -79,7 +91,6 @@ class ObjectiveC
     
         # Maybe I should avoid reading it all into memory...
         ivars = virtual.read(ivar_size * ivar_count)
-      
       
         ivar_count.times do |i|
           ivar_unk0, ivar_name_ptr, ivar_type_ptr, ivar_unk1, ivar_memsize = ivars[ivar_size * i, ivar_size].unpack("V*")
@@ -96,6 +107,34 @@ class ObjectiveC
         end
       end
       puts "}\n\n"
+      
+      if metaclass_ptr != 0
+        virtual.seek(metaclass_ptr + 16)
+        metaclass_info = virtual.read(4).unpack("V*")[0]
+        
+        virtual.seek(metaclass_info + 20)
+        class_methodlist_ptr = virtual.read(4).unpack("V*")[0]
+        
+        if class_methodlist_ptr != 0
+          virtual.seek(class_methodlist_ptr)
+          method_size, method_count = virtual.read(8).unpack("V*")
+
+          methods = virtual.read(method_size * method_count)
+      
+          method_count.times do |i|
+            method_name_ptr, method_type_ptr, handler_ptr = methods[method_size * i, method_size].unpack("V*")
+        
+            virtual.seek(method_name_ptr)
+            method_name = virtual.gets("\x00").chop
+          
+            virtual.seek(method_type_ptr)
+            method_type = virtual.gets("\x00").chop
+            
+            puts "+ #{ObjectiveC.merge_typenames(method_name, method_type)}; // #{method_type}"
+          end
+          puts
+        end
+      end
       
       if methodlist_ptr != 0
         virtual.seek(methodlist_ptr)
@@ -194,7 +233,14 @@ class ObjectiveC
         false
       end
       
-      if type[0] == ?{
+      const = if type[0] == ?r
+        type = type[1..-1]
+        true
+      else
+        false
+      end
+      
+      (const ? "const " : "") + if type[0] == ?{
         # TODO: smarter AST usage
         "struct #{element.elements[0].elements[1].elements[1].text_value}"
       elsif type[0] == ?(
