@@ -163,14 +163,19 @@ class MachO
     10  => :indirect
   }
   
-  attr_reader :architectures
+  attr_reader :source
+  attr_reader :images
   
   def initialize(content)
     file_magic = content.read(4).unpack("N")[0]
     
     @source = content
-    @architectures = {}
-    
+    architectures = {}
+
+    @images = {}
+
+    @symbols = []
+
     # Check to see if we have a fat binary
     if file_magic == 0xcafebabe || file_magic == 0xbebafeca
       # We have a fat binary, next int is the number of architectures
@@ -196,7 +201,7 @@ class MachO
         # Go back to where we were
         content.seek(old_offset, IO::SEEK_SET)
         
-        @architectures[[cpu_type, cpu_subtype]] = {:offset => offset, :size => size, :byte_order => byte_order, :big_header => big_header}
+        architectures[[cpu_type, cpu_subtype]] = {:offset => offset, :size => size, :byte_order => byte_order, :image64 => big_header}
       end
     elsif file_magic = 0xfeedface || file_magic == 0xcefadefe || file_magic == 0xfeedfacf || file_magic == 0xcffaedfe
       # We have a normal binary, check the size of its header
@@ -208,12 +213,12 @@ class MachO
       cpu_type = CPU_TYPES[cpu_type]
       cpu_subtype = CPU_SUBTYPES[cpu_type][cpu_subtype]
 
-      @architectures[[cpu_type, cpu_subtype]] = {:offset => 0, :size => content.stat.size, :byte_order => byte_order, :big_header => big_header}
+      architectures[[cpu_type, cpu_subtype]] = {:offset => 0, :size => content.stat.size, :byte_order => byte_order, :image64 => big_header}
     else
       raise "Not a Mach-O binary"
     end
     
-    @architectures.each do |architecture, info|
+    architectures.each do |architecture, info|
       # p architecture
       content.seek(info[:offset], IO::SEEK_SET)
 
@@ -221,9 +226,9 @@ class MachO
       int_format = info[:byte_order] == :big ? "N" : "V"
       
       # Ruby doesn't provide endianness control for 64-bit ints, so we'll need to swap them later if necessary
-      pointer_format = info[:big_header] ? "Q" : int_format
+      pointer_format = info[:image64] ? "Q" : int_format
       
-      header_size = info[:big_header] ? 32 : 28
+      header_size = info[:image64] ? 32 : 28
       
       file_type, command_count, commands_size, macho_flags = content.read(header_size).unpack("x12#{int_format}*")
       
@@ -240,7 +245,6 @@ class MachO
         
         command = command_header + content.read(command_size - 8)
                 
-        # p LOAD_COMMANDS[command_type]
         case LOAD_COMMANDS[command_type]
         when :uuid
           uuid = command[8, 16].unpack("C*")
@@ -251,7 +255,7 @@ class MachO
           segment_name, vm_addr, vm_size, file_offset, file_size, max_prot, init_prot, section_count, segment_flags = command[8, 48].unpack("A16#{pointer_format * 4}#{int_format}*")
                     
           # Swap our pointers if necessary
-          if info[:byte_order] != HOST_BYTE_ORDER && info[:big_header]
+          if info[:byte_order] != HOST_BYTE_ORDER && info[:image64]
             vm_addr     = [vm_addr].pack("Q").unpack("C*").inject([0, 56]){|accum, x| p accum; [accum[0] + x * (2 ** accum[1]), accum[1] - 8]}[0]
             vm_size     = [vm_size].pack("Q").unpack("C*").inject([0, 56]){|accum, x| p accum; [accum[0] + x * (2 ** accum[1]), accum[1] - 8]}[0]
             file_offset = [file_offset].pack("Q").unpack("C*").inject([0, 56]){|accum, x| p accum; [accum[0] + x * (2 ** accum[1]), accum[1] - 8]}[0]
@@ -260,7 +264,7 @@ class MachO
           
           info[:segments][segment_name] = segment = {:vm_addr => vm_addr, :vm_size => vm_size, :file_offset => file_offset, :file_size => file_size, :max_prot => max_prot, :init_prot => init_prot, :flags => segment_flags}
           
-          section_size = info[:big_header] ? 76 : 68
+          section_size = info[:image64] ? 76 : 68
           
           segment[:sections] = {}
           
@@ -270,7 +274,7 @@ class MachO
             section_name, section_segment_name, addr, size, offset, align, relocation_offset, relocation_count, section_flags = section_body.unpack("A16A16#{pointer_format * 4}#{int_format}*")
             
             # Fix our pointer info
-            if info[:byte_order] != HOST_BYTE_ORDER && info[:big_header]
+            if info[:byte_order] != HOST_BYTE_ORDER && info[:image64]
               addr = [addr].pack("Q").unpack("C*").inject([0, 56]){|accum, x| p accum; [accum[0] + x * (2 ** accum[1]), accum[1] - 8]}[0]
               size = [size].pack("Q").unpack("C*").inject([0, 56]){|accum, x| p accum; [accum[0] + x * (2 ** accum[1]), accum[1] - 8]}[0]
             end
@@ -294,14 +298,14 @@ class MachO
           
           old_offset = content.tell
           
-          symbol_size = info[:big_header] ? 16 : 12
+          symbol_size = info[:image64] ? 16 : 12
           
           symbol_count.times do |i|
             content.seek(info[:offset] + symbols_offset + symbol_size * i, IO::SEEK_SET)
             
             un, type, section, desc, value = content.read(symbol_size).unpack("#{int_format}C2#{short_format}#{pointer_format}")
             
-            if info[:byte_order] != HOST_BYTE_ORDER && info[:big_header]
+            if info[:byte_order] != HOST_BYTE_ORDER && info[:image64]
               value = [value].pack("Q").unpack("C*").inject([0, 56]){|accum, x| p accum; [accum[0] + x * (2 ** accum[1]), accum[1] - 8]}[0]
             end
             
@@ -313,6 +317,8 @@ class MachO
             symbol = content.gets("\x00")[0..-2]
             
             info[:symbols][symbol] = {:section => section, :desc => desc, :value => value, :external => external}
+            
+            @symbols << symbol
             
             if symbol_type == 0
               info[:symbols][symbol][:lazy] = (desc & 1) != 0
@@ -370,12 +376,118 @@ class MachO
           external_relocation_table_count,
           local_relocation_table_offset,
           local_relocation_table_count = command[8, 88].unpack("#{int_format}*")
+
+          old_offset = content.tell
+          
+          content.seek(info[:offset] + external_relocation_table_offset)
+          
+          info[:relocations] = {}
+          
+          external_relocation_table_count.times do
+            relocation_address, relocation_info = content.read(8).unpack("#{int_format}*")
+            
+            info[:relocations][relocation_address] = @symbols[relocation_info & 0x00FFFFFF]
+            #p (relocation_info & 0x01000000) >> 24
+            #p (relocation_info & 0x06000000) >> 25
+            #p (relocation_info & 0x08000000) >> 27
+            #p (relocation_info & 0xF0000000) >> 28
+          end
+          
+          content.seek(old_offset)
+
         end
       end
     end
+
+    architectures.each_pair do |architecture, info|
+      @images[architecture] = Image.new(architecture, info, self)
+    end
   end
   
+  # TODO: This class should eventually be moved out of the MachO class, so we can support other object formats
   class Image
+    class VirtualIO
+      def initialize(source, segments)
+        @position, @source, @segments = 0, source.dup, segments
+      end
+      
+      def tell
+        @position
+      end
+      
+      # Replace with a precomputed interval tree, maybe, or maybe a caching mechanism? or at least check how much time this is taking
+      def seek(offset, whence = IO::SEEK_SET)
+        @segments.each_value do |info|
+          if offset >= info[:vm_addr] && offset < info[:vm_addr] + info[:vm_size]
+            read_offset = info[:file_offset] + (offset - info[:vm_addr])
+
+            @source.seek(read_offset)
+            
+            return
+          end
+        end
+        
+        raise "Invalid seek"
+      end
+      
+      def read(size)
+        @source.read(size)
+      end
+      
+      def gets(separator)
+        @source.gets(separator)
+      end
+    end
     
+    class PhysicalIO
+      def initialize(source, offset, size)
+        @source, @offset, @size = source.dup, offset, size
+      end
+      
+      def tell
+        @source.tell - @offset
+      end
+      
+      def seek(offset, whence = IO::SEEK_SET)
+        # TODO: check for image bounds
+        if whence == IO::SEEK_SET
+          @source.seek(offset + @offset, whence)
+        else
+          raise "Not implemented"
+        end
+      end
+      
+      def read(size)
+        @source.read(size)
+      end
+      
+      def gets(separator)
+        @source.gets(separator)
+      end
+    end
+    
+    attr_reader :segments, :sections, :symbols, :size, :relocations
+    
+    def initialize(architecture, info, parent)
+      @parent = parent
+      @sections = info[:sections]
+      @symbols = info[:symbols]
+      @image64 = info[:image64]
+      @byte_order = info[:byte_order]
+      @offset = info[:offset]
+      @size = info[:size]
+      @segments = info[:segments]
+      @relocations = info[:relocations]
+    end
+    
+    # Returns an IO object that operates on the loaded image's memory
+    def virtual
+      VirtualIO.new(@parent.source, @segments)
+    end
+    
+    # Returns an IO object that operates on the file (or subset of it, if it's a fat binary) this image came from
+    def physical
+      PhysicalIO.new(@parent.source, @offset, @size)
+    end
   end
 end

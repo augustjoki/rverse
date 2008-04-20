@@ -1,0 +1,279 @@
+# This needs to include the C definitions, and is untested
+
+grammar ObjectiveC
+  include C
+
+  rule external_declaration
+    function_definition / 
+    declaration / 
+    class_interface / 
+    class_implementation / 
+    category_interface / 
+    category_implementation / 
+    protocol_declaration / 
+    protocol_declaration_list / 
+    class_declaration_list
+  end
+  
+  rule class_interface
+    "@interface" class_name (":" superclass_name)?
+      protocol_reference_list?
+      instance_variables?
+      interface_declaration_list?
+    "@end"
+  end
+  
+  rule class_implementation
+    "@implementation" class_name (":" superclass_name)?
+      implementation_definition_list?
+    "@end"
+  end
+  
+  rule category_interface
+    "@interface" class_name "(" category_name ")"
+      protocol_reference_list?
+      interface_declaration_list?
+    "@end"
+  end
+  
+  rule category_implementation
+    "@implementation" class_name "(" category_name ")"
+      implementation_definition_list?
+    "@end"
+  end
+  
+  rule protocol_declaration
+    "@protocol" protocol_name
+      protocol_reference_list?
+      interface_declaration_list?
+    "@end"
+  end
+  
+  rule protocol_declaration_list
+    "@protocol" protocol_list ";"
+    class_declaration_list
+    "@class" class_list ";"
+  end
+  
+  # Fix me
+  rule class_list
+    class_name ("," class_name)*
+  end
+  
+  rule protocol_reference_list
+    "<" protocol_list ">"
+  end
+  
+  rule protocol_list
+    protocol_name ("," protocol_name)*
+  end
+  
+  rule class_name
+    identifier
+  end
+  
+  rule superclass_name
+    identifier
+  end
+  
+  rule category_name
+    identifier
+  end
+  
+  rule protocol_name
+    identifier
+  end
+  
+  rule instance_variables
+    "{" instance_variable_declaration "}"
+  end
+  
+  rule instance_variable_declaration
+    visibility_specification /
+    struct_declaration_list instance_variables /
+    instance_variable_declaration visbility_specification /
+    instance_variable_declaration struct_declaration_list instance_variables
+  end
+  
+  rule visibility_specification
+    "@private" / "@protected" / "@package" / "@public"
+  end
+  
+  rule interface_declaration_list
+    declaration / 
+    method_declaration /
+    interface_declaration_list declaration /
+    interface_declaration_list method_declaration
+  end
+  
+  rule method_declaration
+    class_method_declaration /
+    instance_method_declaration
+  end
+  
+  rule class_method_declaration
+    "+" (method_type)? method_selector (declaration_list)? compound_statement
+  end
+  
+  rule instance_method_declaration
+    "+" (method_type)? method_selector (declaration_list)? compound_statement
+  end 
+  
+  rule method_selector
+    unary_selector /
+    keyword_selector ("," "...")?
+    keyword_selector ("," parameter_type_list)?
+  end
+  
+  rule unary_selector
+    selector
+  end
+  
+  rule keyword_selector
+    keyword_declarator+
+  end
+  
+  rule keyword_declarator
+    ":" method_type? identifier /
+    selector ":" (method_type? method_type)? identifier
+  end
+  
+  rule selector
+    identifier
+  end
+  
+  rule method_type
+    "(" type_name ")"
+  end
+  
+  rule type_specifier
+    "void" /
+    "char" /
+    "short" /
+    "int" /
+    "long" /
+    "float" /
+    "double" /
+    "signed" /
+    "unsigned" /
+    "id" protocol_reference_list? / 
+    class_name protocol_reference_list? /
+    struct_or_union_specifier /
+    enum_specifier /
+    typedef_name
+  end
+  
+  rule struct_or_union_specifier
+    struct_or_union identifier? "{" struct_declaration_list "}" /
+    struct_or_union identifier
+  end
+  
+  rule type_qualifier
+    "const" /
+    "volatile" /
+    protocol_qualifier
+  end
+  
+  rule protocol_qualifier
+    "in" /
+    "out" /
+    "inout" /
+    "bycopy" /
+    "byref" /
+    "oneway"
+  end
+  
+  rule primary_expression
+    identifier /
+    constant /
+    string /
+    "(" expression ")" /
+    "self" /
+    message_expression /
+    selector_expression /
+    protocol_expression /
+    encode_expression
+  end
+  
+  rule message_expression
+    (receiver message_selector)?
+  end
+  
+  rule receiver
+    expression /
+    class_name /
+    "super"
+  end
+  
+  rule message_selector 
+    selector /
+    keyword_argument_list
+  end
+  
+  rule keyword_argument_list
+    keyword_argument+
+  end
+  
+  # Check me
+  rule keyword_argument
+    selector ":" expression /
+    ":" expression
+  end
+  
+  rule selector_expression
+    "@selector" "(" selector_name ")"
+  end
+  
+  rule selector_name
+    selector /
+    keyword_name_list
+  end
+  
+  rule keyword_name_list
+    keyword_name+
+  end
+  
+  # Check me
+  rule keyword_name
+    selector ":" /
+    ":"
+  end
+  
+  rule protocol_expression
+    "@protocol" "(" protocol_name ")"
+  end
+  
+  rule encode_expression
+    "@encode" "(" type_name ")"
+  end
+  
+  rule exception_declarator
+    declarator
+  end
+  
+  rule try_statement
+    "@try" statement
+  end
+  
+  rule catch_statement
+    "@catch" "(" exception_declarator ")" statement
+  end
+  
+  rule finally_statement
+    "@finally" statement
+  end
+  
+  rule throw_statement
+    "@throw" statement
+  end
+  
+  rule try_block
+    try_statement 
+    catch_statement 
+    finally_statement?
+  end
+  
+  rule synchronized_statement
+    "@synchronized" "(" identifier ")" statement
+  end
+end

@@ -1,0 +1,201 @@
+# This is untested, and based on http://lists.canonical.org/pipermail/kragen-hacks/1999-October/000201.html
+
+grammar C
+  rule translation_unit
+    (funciton_definition / declaration)+
+  end
+  
+  rule function_declaration
+    declaration_specifiers? declarator declaration* block
+  end
+  
+  rule declaration
+    declaration_specifiers init_declarator ("," init_declarator)* ";"
+  end
+  
+  rule declaration_specifiers
+    (storage_class_specifier / type_specifier / type_qualifier)+
+  end
+  
+  rule storage_class_specifier 
+    "auto" / "register" / "static" / "extern" / "typedef"
+  end
+  
+  rule type_specifier
+    "void" / "char" / "short" / "int" / "long" / "float" / "double" / "signed" / "unsigned" / 
+    struct_or_union_specifier /
+    enum_specifier /
+    typedef_name
+  end
+  
+  rule type_qualifier
+    "const" / "volatile"
+  end
+  
+  rule struct_or_union_specifier
+    ("struct" / "union") (identifier? "{" struct_declaration+ "}" / identifier)
+  end
+  
+  rule init_declarator
+    declarator ("=" initializer)?
+  end
+  
+  rule struct_declaration
+    (type_specifier / type_qualifier)+ struct_declarator ("," struct_declarator)*
+  end
+  
+  rule struct_declarator
+    declarator / (declarator? ":" constant_expression)
+  end
+  
+  rule enum_specifier
+    "enum" (identifier / (identifier? "{" enumerator ("," enumerator)* "}"))
+  end
+  
+  rule enumerator
+    identifier ("=" constant_expression)?
+  end
+  
+  rule declarator
+    pointer? (identifier / "(" declarator ")") (
+      ("[" constant_expression? "]") /
+      ("(" parameter_type_list ")") /
+      ("(" (identifier ("," identifier)*)? ")")
+    )*
+  end
+  
+  rule pointer
+    ("*" type_qualifier*)*
+  end
+  
+  rule parameter_type_list
+    parameter_declaration ("," parameter_declaration) ("," "...")?
+  end
+  
+  rule parameter_declaration
+    declaration_specifiers (declarator / abstract_declarator)?
+  end
+  
+  rule initializer
+    assignment_expression / "{" initializer ("," initializer) ","? "}"
+  end
+  
+  rule type_name
+    (type_specifier / type_qualifier)+ abstract_declarator?
+  end
+  
+  rule abstract_declarator
+    pointer ("(" abstract_declarator")")? (
+      ("[" constant_expression? "]") /
+      ("(" parameter_type_list? ")")
+    )*
+  end
+  
+  rule statement
+    ((identifier / ("case" constant_expression) / "default") ":")*
+    (expression? ";" /
+      block /
+      "if" "(" expression ")" statement /
+      "if" "(" expression ")" statement "else" statement /
+      "switch" "(" expression ")" statement /
+      "while" "(" expression ")" statement /
+      "do" statement "while" "(" expression ")" ";" /
+      "for" "(" expression? ";" expression? ";" expresion? ")" statement /
+      "goto" identifier ";" /
+      "continue" ";" /
+      "break" ";" /
+      "return" expression? ";"
+    )
+  end
+  
+  rule block
+    "{" declaration* statement* "}"
+  end
+  
+  rule expression
+    assignment_expression ("," assignment_expression)*
+  end
+  
+  rule assignment_expression
+    (unary_expression (
+      "=" / "*=" / "/=" / "%=" / "+=" / "-=" / "<<=" / ">>=" / "&=" / "^=" / "|="
+    ))* conditional_expression
+  end
+  
+  rule conditional_expression
+    logical_or_expression ("?" expression ":" conditional_expression)?
+  end
+  
+  rule constant_expression
+    conditional_expression
+  end
+  
+  rule logical_or_expression
+    logical_and_expression ("||" logical_and_expression)*
+  end
+  
+  rule logical_and_expression
+    inclusive_or_expression ("&&" inclusive_or_expression)*
+  end
+  
+  rule inclusive_or_expression
+    exclusive_or_expression ("|" exclusive_or_expression)*
+  end
+  
+  rule exclusive_or_expression
+    and_expression ("^" and_expression)*
+  end
+  
+  rule and_expression
+    equality_expression ("&" equality_expression)*
+  end
+  
+  rule equality_expression
+    relational_expression (("==" / "!=") relational_expression)*
+  end
+  
+  rule relational_expression
+    shift_expression (("<" / ">" / "<=" / ">=") shift_expression)*
+  end
+  
+  rule shift_expression
+    additive_expression (("<<" / ">>") additive_expression)*
+  end
+  
+  rule additive_expression
+    multiplicative_expression (("+" / "-") multiplicative_expression)*
+  end
+  
+  rule multiplicative_expression
+    cast_expression (("*" / "/" / "%") cast_expression)*
+  end
+  
+  rule cast_expression
+    ("(" type_name ")")* unary_expression
+  end
+  
+  rule unary_expression
+    ("++" / "--" / "sizeof")* (
+      "sizeof" "(" type_name ")" /
+      ("&" / "*" / "+" / "-" / "~" / "!") cast_expression /
+      postfix_expression
+    )
+  end
+  
+  rule postfix_expression
+    (identifier / constant / string / "(" expression ")") (
+      "[" expression "]" /
+      "(" assigment_expression ("," assignment_expression)* ")" /
+      "." identifier /
+      "->" identifier /
+      "++" / "--"
+    )
+  end
+  
+  rule constant
+    integer_constant /
+    character_constant /
+    floating_constant /
+    enumeration_constant
+  end
+end
