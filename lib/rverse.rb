@@ -7,7 +7,8 @@ if ARGV.length > 0
   file = ARGV[0]
 else
   file = "/Volumes/Vail5A225c.CarrierBundle/Applications/MobilePhone.app/MobilePhone"
-  file = "/Users/pumpkin/ObjC2Showcase/build/Debug-iphoneos/ObjC2Showcase.app/ObjC2Showcase"
+  #file = "/Users/pumpkin/ObjC2Showcase/build/Debug-iphoneos/ObjC2Showcase.app/ObjC2Showcase"
+  file = "/Users/pumpkin/Downloads/UIKit"
 end
 
 f = File.open(file)

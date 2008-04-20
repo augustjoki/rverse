@@ -68,6 +68,7 @@ class ObjectiveC
       virtual.seek(class_offset)
       metaclass_ptr, superclass_ptr, cache_ptr, vtable_ptr, info_ptr = virtual.read(20).unpack("V*")
       
+=begin      
       superclass_name = if object.relocations[class_offset + 4] =~ /^_OBJC_CLASS_\$_(.*)$/
         $1
       else
@@ -78,6 +79,8 @@ class ObjectiveC
         virtual.seek(superclass_name_ptr)
         virtual.gets("\x00").chop
       end
+=end
+      superclass_name = "NSPumpkin"
             
       virtual.seek(info_ptr)
       unk0, unk1, unk2, unk3, name_ptr, methodlist_ptr, unk4, ivarlist_ptr, unk5, propertylist_ptr = virtual.read(40).unpack("V*")
@@ -103,7 +106,11 @@ class ObjectiveC
           virtual.seek(ivar_type_ptr)
           ivar_type = virtual.gets("\x00").chop
           
-          puts "\t#{ObjectiveC.merge_typenames(ivar_name, ivar_type)}; // #{ivar_type}"
+          begin
+            puts "\t#{ObjectiveC.merge_typenames(ivar_name, ivar_type)}; // #{ivar_type}"
+          rescue
+            puts "// TO BE FIXED (unrecognized member variable)"
+          end
         end
       end
       puts "}\n\n"
@@ -130,7 +137,11 @@ class ObjectiveC
             virtual.seek(method_type_ptr)
             method_type = virtual.gets("\x00").chop
             
-            puts "+ #{ObjectiveC.merge_typenames(method_name, method_type)}; // #{method_type}"
+            begin
+              puts "+ #{ObjectiveC.merge_typenames(method_name, method_type)}; // #{method_type}"
+            rescue
+              puts "// TO BE FIXED (unrecognized class method)"
+            end
           end
           puts
         end
@@ -150,8 +161,12 @@ class ObjectiveC
           
           virtual.seek(method_type_ptr)
           method_type = virtual.gets("\x00").chop
-                
-          puts "- #{ObjectiveC.merge_typenames(method_name, method_type)}; // #{method_type}"
+      
+          begin
+            puts "- #{ObjectiveC.merge_typenames(method_name, method_type)}; // #{method_type}"
+          rescue
+            puts "// TO BE FIXED (unrecognized instance method)"
+          end
         end
       end
       
@@ -189,6 +204,7 @@ class ObjectiveC
   end
   
   def self.merge_typenames(name, types)
+    
     decoded_types = decode_types(types)
     
     if decoded_types.size == 1
@@ -226,14 +242,18 @@ class ObjectiveC
     types_array = parsed.elements.map do |element|
       type = element.text_value
       
-      pointer = if type[0] == ?^
+      if type[0] == ?V
+        type = type[1..-1]
+      end
+      
+      const = if type[0] == ?r
         type = type[1..-1]
         true
       else
         false
       end
       
-      const = if type[0] == ?r
+      pointer = if type[0] == ?^
         type = type[1..-1]
         true
       else
@@ -247,20 +267,24 @@ class ObjectiveC
         # TODO: this all should be outputting its info to an abstract structure, rather than as a string to stdout
         union_name = element.elements[0].elements[1].elements[1].text_value
         
-        union_members = []
-        element.elements[0].elements[1].elements[3].elements.each do |el|
-          union_element_name = el.elements[0].text_value.gsub(/\"/, '')
-          union_element_type = el.elements[1].text_value
+        begin
+          union_members = []
+          element.elements[0].elements[1].elements[3].elements.each do |el|
+            union_element_name = el.elements[0].text_value.gsub(/\"/, '')
+            union_element_type = el.elements[1].text_value
           
-          if union_element_type[0] == ?^
-            union_members << "#{BASIC_TYPES[union_element_type[1, 1]]} * #{union_element_name}"
-          else
-            union_members << "#{BASIC_TYPES[union_element_type[0, 1]]} #{union_element_name}"
+            if union_element_type[0] == ?^
+              union_members << "#{BASIC_TYPES[union_element_type[1, 1]]} * #{union_element_name}"
+            else
+              union_members << "#{BASIC_TYPES[union_element_type[0, 1]]} #{union_element_name}"
+            end
           end
-        end
         
-        "union #{union_name} {\n" +
-        union_members.map{|member| "\t\t#{member};"}.join("\n") + "\n\t}"
+          "union #{union_name} {\n" +
+          union_members.map{|member| "\t\t#{member};"}.join("\n") + "\n\t}"
+        rescue
+          "union #{union_name}"
+        end
       elsif type[0] == ?[
         count = element.elements[0].elements[1].elements[1].text_value.to_i
         

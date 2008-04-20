@@ -4,7 +4,7 @@ grammar ObjectiveCTypeDescriptor
   end
 
   rule type
-    ("^" / "r")* ([#:cCsSiIlLqQfdbBv?\*%!r] / class / struct / union / array)
+    ("^" / "r" / "V")* ([#:cCsSiIlLqQfdbBv?\*%!r] / class / struct / union / array)
   end
   
   rule class
@@ -12,11 +12,11 @@ grammar ObjectiveCTypeDescriptor
   end
   
   rule struct
-    "{" (name / "?") "=" (("\"" name "\"")? (type number?))* "}"
+    "{" (name / "?") ("=" (("\"" name "\"")? (type number?))*)? "}"
   end
 
   rule union
-    "(" name "=" (("\"" name "\"")? (type number?))* ")"
+    "(" (name / "?") ("=" (("\"" name "\"")? (type number?))*)? ")"
   end
   
   rule array
